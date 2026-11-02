@@ -1,0 +1,65 @@
+#!/bin/bash
+#PBS -N subject_activation
+#PBS -l select=1:ncpus=1:mem=4gb
+#PBS -l walltime=00:30:00
+#PBS -J 0-2399
+#PBS -o /path/to/project/Scripts/subject_activation_logs/subject_activation.o
+#PBS -e /path/to/project/Scripts/subject_activation_logs/subject_activation.e
+
+set -euo pipefail
+
+mkdir -p /path/to/project/Scripts/subject_activation_logs
+
+module purge
+module load tools/prod
+module load FSL/6.0.7.17
+source $FSLDIR/etc/fslconf/fsl.sh
+
+TEMPLATE="/path/to/project/Scripts/subject_activation_template.sh"
+
+PIPELINES=(
+    "6HMP"
+    "24HMP"
+    "6HMP_aCompCor"
+    "6HMP_spike_reg"
+    "24HMP_aCompCor"
+    "6HMP_WM_CSF"
+    "24HMP_WM_CSF"
+    "24HMP_spike_reg"
+    "6HMP_aCompCor_spike_reg"
+    "24HMP_aCompCor_spike_reg"
+    "6HMP_WM_CSF_spike_reg"
+    "24HMP_WM_CSF_spike_reg"
+)
+
+TASKS=(nback mid gonogo oasis)
+SESSIONS=(ses-1 ses-2)
+
+SUBJECTS=($(ls /path/to/project/first_levels/nback/ | grep "^sub-"))
+
+COMBOS=()
+for TASK in "${TASKS[@]}"; do
+    for PIPELINE in "${PIPELINES[@]}"; do
+        for SUB in "${SUBJECTS[@]}"; do
+            for SES in "${SESSIONS[@]}"; do
+                COMBOS+=("${TASK}:${PIPELINE}:${SUB}:${SES}")
+            done
+        done
+    done
+done
+
+COMBO="${COMBOS[$PBS_ARRAY_INDEX]}"
+export TASK=$(echo "$COMBO"     | cut -d: -f1)
+export PIPELINE=$(echo "$COMBO" | cut -d: -f2)
+export SUB=$(echo "$COMBO"      | cut -d: -f3)
+export SES=$(echo "$COMBO"      | cut -d: -f4)
+
+echo "================================================"
+echo "Job index : $PBS_ARRAY_INDEX"
+echo "Task      : $TASK"
+echo "Pipeline  : $PIPELINE"
+echo "Subject   : $SUB"
+echo "Session   : $SES"
+echo "================================================"
+
+bash "${TEMPLATE}"

@@ -1,0 +1,101 @@
+#!/bin/bash
+#PBS -N dice_all_combos
+#PBS -l select=1:ncpus=1:mem=4gb
+#PBS -l walltime=02:00:00
+#PBS -J 0-215
+#PBS -o /path/to/project/group_levels/dice_logs/dice_all.o
+#PBS -e /path/to/project/group_levels/dice_logs/dice_all.e
+
+set -euo pipefail
+
+# Create log directory if it doesn't exist
+mkdir -p /path/to/project/group_levels/dice_logs
+
+# Load FSL module (adjust to match your system)
+module load FSL/6.0.7.17
+
+source $FSLDIR/etc/fslconf/fsl.sh
+
+# Define the template script location
+TEMPLATE="/path/to/project/group_levels/templates/dice_calculation_template.sh"
+
+# Define all pipelines
+PIPELINES=(
+    "6HMP"
+    "24HMP"
+    "6HMP_aCompCor"
+    "6HMP_spike_reg"
+    "24HMP_aCompCor"
+    "6HMP_WM_CSF"
+    "24HMP_WM_CSF"
+    "24HMP_spike_reg"
+    "6HMP_aCompCor_spike_reg"
+    "24HMP_aCompCor_spike_reg"
+    "6HMP_WM_CSF_spike_reg"
+    "24HMP_WM_CSF_spike_reg"
+)
+
+# Define tasks and their cope counts
+declare -A TASK_COPES
+TASK_COPES["nback"]=4
+TASK_COPES["gonogo"]=4
+TASK_COPES["mid"]=4
+TASK_COPES["oasis"]=6
+
+# Counter for tracking progress
+TOTAL_COMBOS=0
+COMPLETED=0
+FAILED=0
+
+# Calculate total combinations
+for TASK in "${!TASK_COPES[@]}"; do
+    NUM_COPES=${TASK_COPES[$TASK]}
+    TOTAL_COMBOS=$((TOTAL_COMBOS + NUM_COPES * ${#PIPELINES[@]}))
+done
+
+echo "================================================"
+echo "Starting Dice coefficient calculations"
+echo "Total combinations to process: ${TOTAL_COMBOS}"
+echo "Tasks: nback, gonogo, mid, oasis"
+echo "Pipelines: ${#PIPELINES[@]}"
+echo "================================================"
+echo ""
+
+# Loop through all tasks
+for TASK in nback gonogo mid oasis; do
+    NUM_COPES=${TASK_COPES[$TASK]}
+    
+    echo "Processing task: ${TASK} (${NUM_COPES} copes)"
+    
+    # Loop through all copes for this task
+    for COPE_NUM in $(seq 1 ${NUM_COPES}); do
+        COPE="cope${COPE_NUM}"
+        
+        # Loop through all pipelines
+        for PIPELINE in "${PIPELINES[@]}"; do
+            echo "  Running: ${TASK} / ${PIPELINE} / ${COPE}"
+            
+            # Export variables so the template can use them
+            export TASK
+            export PIPELINE
+            export COPE
+            
+            # Run the template script
+            if bash "${TEMPLATE}"; then
+                COMPLETED=$((COMPLETED + 1))
+                echo "    ✓ Success (${COMPLETED}/${TOTAL_COMBOS})"
+            else
+                FAILED=$((FAILED + 1))
+                echo "    ✗ FAILED (${TASK}/${PIPELINE}/${COPE})"
+            fi
+        done
+    done
+    echo ""
+done
+
+echo "================================================"
+echo "Dice coefficient calculations complete!"
+echo "Total: ${TOTAL_COMBOS}"
+echo "Completed: ${COMPLETED}"
+echo "Failed: ${FAILED}"
+echo "================================================"

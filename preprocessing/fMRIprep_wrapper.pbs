@@ -1,0 +1,48 @@
+#!/bin/bash
+#PBS -l walltime=24:00:00
+#PBS -l select=1:ncpus=16:mem=96gb
+#PBS -N Reliabilityfmriprep
+#PBS -J 0-25
+#PBS -o /path/to/project/Scripts/logs
+#PBS -e /path/to/project/Scripts/logs
+
+# =====================
+# Suggested run resources
+# =====================
+# Note - the job numbers are 0 indexed. So if you have 5 subjects, run J 0-4.
+
+# dicom2nifti, 1 hrs, 10 cpus, 30 gb is good
+# fMRIprep, 20 hrs, 16 cpus, 32g is good
+# Postproc, 1 hr, 5 cpu, 15 gb is good
+
+
+
+
+ScriptDir=/path/to/project/Scripts
+
+
+
+# assign one to each level of the array
+SubjList=(001 002 003 004 005 006 007 008 009 011 012 013 014 015 016 017 018 019 020 021 022 024 025 026 027) # list of subject IDs
+sub=${SubjList[${PBS_ARRAY_INDEX}]}
+
+
+#${ScriptDir}/MoveFiles.sh
+
+#${ScriptDir}/Dicom2Nifti.sh
+
+#${ScriptDir}/BIDSifyFiles.sh
+
+${ScriptDir}/fMRIprep_template.sh sub-${sub}
+
+#${ScriptDir}/TransformCortex2SubjSpace.sh sub-${sub}
+
+#${ScriptDir}/PostProc.sh sub-${sub}
+
+
+
+
+
+
+
+

@@ -1,0 +1,64 @@
+#!/bin/bash
+#PBS -N spearman_masked
+#PBS -l select=1:ncpus=1:mem=8gb
+#PBS -l walltime=02:00:00
+#PBS -J 0-215
+#PBS -o /path/to/project/group_levels/spearman_logs/spearman_masked.o
+#PBS -e /path/to/project/group_levels/spearman_logs/spearman_masked.e
+
+set -euo pipefail
+
+mkdir -p /path/to/project/group_levels/spearman_logs
+
+module load FSL/6.0.7.17
+source $FSLDIR/etc/fslconf/fsl.sh
+
+# Load Python with scipy — adjust module name to match your HPC
+module load anaconda3/personal 2>/dev/null || module load python/3.9 2>/dev/null || true
+
+TEMPLATE="/path/to/project/group_levels/templates/spearman_correlation_masked_template.sh"
+
+PIPELINES=(
+    "6HMP"
+    "24HMP"
+    "6HMP_aCompCor"
+    "6HMP_spike_reg"
+    "24HMP_aCompCor"
+    "6HMP_WM_CSF"
+    "24HMP_WM_CSF"
+    "24HMP_spike_reg"
+    "6HMP_aCompCor_spike_reg"
+    "24HMP_aCompCor_spike_reg"
+    "6HMP_WM_CSF_spike_reg"
+    "24HMP_WM_CSF_spike_reg"
+)
+
+# Build flat index array — same order as dice PBS scripts (216 combos)
+COMBOS=()
+for TASK in nback gonogo mid oasis; do
+    case $TASK in
+        nback)  NUM_COPES=4 ;;
+        gonogo) NUM_COPES=4 ;;
+        mid)    NUM_COPES=4 ;;
+        oasis)  NUM_COPES=6 ;;
+    esac
+    for COPE_NUM in $(seq 1 $NUM_COPES); do
+        for PIPELINE in "${PIPELINES[@]}"; do
+            COMBOS+=("${TASK}:cope${COPE_NUM}:${PIPELINE}")
+        done
+    done
+done
+
+COMBO="${COMBOS[$PBS_ARRAY_INDEX]}"
+export TASK=$(echo "$COMBO"     | cut -d: -f1)
+export COPE=$(echo "$COMBO"     | cut -d: -f2)
+export PIPELINE=$(echo "$COMBO" | cut -d: -f3)
+
+echo "================================================"
+echo "Job index : $PBS_ARRAY_INDEX"
+echo "Task      : $TASK"
+echo "Cope      : $COPE"
+echo "Pipeline  : $PIPELINE"
+echo "================================================"
+
+bash "${TEMPLATE}"

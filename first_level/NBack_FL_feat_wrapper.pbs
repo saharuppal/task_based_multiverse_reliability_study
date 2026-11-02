@@ -1,0 +1,61 @@
+#!/bin/bash
+#PBS -N FEAT_NBack_Batch
+#PBS -l select=1:ncpus=4:mem=16gb
+#PBS -l walltime=08:00:00
+#PBS -J 0-599
+#PBS -o $BASEDIR/Scripts/featlogs/NBack
+#PBS -e $BASEDIR/Scripts/featlogs/NBack
+
+module load FSL/6.0.7.17
+source "$FSLDIR/etc/fslconf/fsl.sh"
+
+# Lists of subjects/sessions/pipelines
+SubjList=(001 002 003 004 005 006 007 008 009 011 012 013 014 015 016 017 018 019 020 021 022 024 025 026 027)
+SesList=(1 2)
+PipelineList=(6HMP 24HMP 6HMP_aCompCor 6HMP_spike_reg 24HMP_aCompCor 6HMP_WM_CSF 24HMP_WM_CSF 24HMP_spike_reg 6HMP_aCompCor_spike_reg 24HMP_aCompCor_spike_reg 6HMP_WM_CSF_spike_reg 24HMP_WM_CSF_spike_reg)
+
+NUM_PIPE=${#PipelineList[@]}
+NUM_SESS=${#SesList[@]}
+
+# PBS array index -> pipeline/session/subject indices
+PIPE_INDEX=$(( PBS_ARRAY_INDEX % NUM_PIPE ))
+SES_INDEX=$(( (PBS_ARRAY_INDEX / NUM_PIPE) % NUM_SESS ))
+SUB_INDEX=$(( PBS_ARRAY_INDEX / (NUM_PIPE * NUM_SESS) ))
+
+SUB="sub-${SubjList[$SUB_INDEX]}"
+SESS="ses-${SesList[$SES_INDEX]}"
+PIPELINE="${PipelineList[$PIPE_INDEX]}"
+
+# Paths
+basedir="/path/to/project"
+outputdir="$basedir/first_levels/nback"
+template="$basedir/first_levels/templates/nback_FL_design_template.fsf"
+
+# FEAT output directory MUST match template: SUB_SESS_nback_PIPELINE (+ .feat created by FEAT)
+FEAT_DIR="$outputdir/${SUB}_${SESS}_nback_${PIPELINE}.feat"
+
+# Where to save the generated fsf for this job (can be any location)
+FSF_DIR="$outputdir/$SUB/$SESS"
+FSF_FILE="$FSF_DIR/nback_${PIPELINE}_design.fsf"
+
+echo "Job $PBS_ARRAY_INDEX -> $SUB $SESS $PIPELINE"
+echo "Expected FEAT dir: $FEAT_DIR"
+echo "FSF file: $FSF_FILE"
+
+# Skip if already run
+if [ -d "$FEAT_DIR" ]; then
+    echo "$SUB $SESS $PIPELINE already exists. Skipping."
+    exit 0
+fi
+
+# Make sure output directory for fsf exists
+mkdir -p "$FSF_DIR"
+
+# Create subject/session/pipeline-specific design file from template
+sed -e "s/SUB/$SUB/g" \
+    -e "s/SESS/$SESS/g" \
+    -e "s/PIPELINE/$PIPELINE/g" \
+    "$template" > "$FSF_FILE"
+
+# Run FEAT
+feat "$FSF_FILE"

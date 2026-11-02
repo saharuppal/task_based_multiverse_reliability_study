@@ -1,0 +1,97 @@
+#!/bin/bash
+#PBS -N HLmean_feat
+#PBS -l select=1:ncpus=4:mem=16gb
+#PBS -l walltime=08:00:00
+#PBS -J 0-95
+#PBS -o /path/to/project/Scripts/featlogs/
+#PBS -e /path/to/project/Scripts/featlogs/
+
+module load FSL/6.0.7.17
+source "$FSLDIR/etc/fslconf/fsl.sh"
+
+set -euo pipefail
+
+BASE="/path/to/project"
+TEMPLATE_DIR="${BASE}/group_levels/templates"
+
+TASKS=(oasis mid nback gonogo)
+SESSIONS=(1 2)
+
+PIPELINES=(
+  6HMP
+  24HMP
+  6HMP_aCompCor
+  6HMP_spike_reg
+  24HMP_aCompCor
+  6HMP_WM_CSF
+  24HMP_WM_CSF
+  24HMP_spike_reg
+  6HMP_aCompCor_spike_reg
+  24HMP_aCompCor_spike_reg
+  6HMP_WM_CSF_spike_reg
+  24HMP_WM_CSF_spike_reg
+)
+
+OUT_FSF_DIR="${BASE}/group_levels/generated_fsf"
+OUT_BASE="${BASE}/group_levels/means"
+mkdir -p "${OUT_FSF_DIR}"
+
+NTASK=${#TASKS[@]}
+NSES=${#SESSIONS[@]}
+NPIPE=${#PIPELINES[@]}
+NJOBS=$(( NTASK * NSES * NPIPE ))
+
+if [[ -z "${PBS_ARRAY_INDEX:-}" ]]; then
+  echo "ERROR: PBS_ARRAY_INDEX not set (submit as an array job)."
+  exit 1
+fi
+
+IDX="${PBS_ARRAY_INDEX}"
+if (( IDX < 0 || IDX >= NJOBS )); then
+  echo "ERROR: PBS_ARRAY_INDEX=${IDX} out of range 0..$((NJOBS-1))"
+  exit 1
+fi
+
+# Decode PBS array index -> task, session, pipeline
+PIPE_IDX=$(( IDX % NPIPE ))
+TMP=$(( IDX / NPIPE ))
+SES_IDX=$(( TMP % NSES ))
+TASK_IDX=$(( TMP / NSES ))
+
+TASK="${TASKS[$TASK_IDX]}"
+SES="${SESSIONS[$SES_IDX]}"
+PIPE="${PIPELINES[$PIPE_IDX]}"
+
+TEMPLATE="${TEMPLATE_DIR}/${TASK}_session${SES}_mean_template.fsf"
+if [[ ! -f "${TEMPLATE}" ]]; then
+  echo "ERROR: Template not found: ${TEMPLATE}"
+  exit 1
+fi
+
+OUTDIR="${OUT_BASE}/${TASK}/ses-${SES}/${PIPE}"
+mkdir -p "${OUTDIR}"
+
+GEN_FSF="${OUT_FSF_DIR}/${TASK}_ses-${SES}_${PIPE}_mean.fsf"
+cp -f "${TEMPLATE}" "${GEN_FSF}"
+
+# 1) Replace PIPELINE placeholder everywhere
+sed -i "s/PIPELINE/${PIPE}/g" "${GEN_FSF}"
+
+# 2) Force a unique output directory (prevents pipeline runs overwriting each other)
+#    Rewrites the entire 'set fmri(outputdir) "...something..."' line.
+#    Uses | delimiter so / in paths doesn't need escaping.
+sed -i "s|^set fmri(outputdir).*|set fmri(outputdir) \"${OUTDIR}\"|g" "${GEN_FSF}"
+
+echo "============================================================"
+echo "PBS_ARRAY_INDEX : ${IDX} / $((NJOBS-1))"
+echo "Task            : ${TASK}"
+echo "Session         : ${SES}"
+echo "Pipeline        : ${PIPE}"
+echo "Template        : ${TEMPLATE}"
+echo "Generated FSF   : ${GEN_FSF}"
+echo "Output dir      : ${OUTDIR}"
+echo "============================================================"
+
+feat "${GEN_FSF}"
+
+echo "DONE: ${TASK} ses-${SES} ${PIPE}"

@@ -1,0 +1,69 @@
+#!/bin/bash
+#PBS -N top1pct_zstat_all
+#PBS -l select=1:ncpus=1:mem=4gb
+#PBS -l walltime=01:00:00
+#PBS -J 0-59
+#PBS -o /path/to/project/group_levels/top1pct_logs/top1pct_zstat.o
+#PBS -e /path/to/project/group_levels/top1pct_logs/top1pct_zstat.e
+
+set -euo pipefail
+
+mkdir -p /path/to/project/group_levels/top1pct_logs
+
+module purge
+module load tools/prod
+module load FSL/6.0.7.17
+source $FSLDIR/etc/fslconf/fsl.sh
+
+TEMPLATE="/path/to/project/group_levels/templates/top1pct_zstat_template.sh"
+
+PIPELINES=(
+    "6HMP"
+    "24HMP"
+    "6HMP_aCompCor"
+    "6HMP_spike_reg"
+    "24HMP_aCompCor"
+    "6HMP_WM_CSF"
+    "24HMP_WM_CSF"
+    "24HMP_spike_reg"
+    "6HMP_aCompCor_spike_reg"
+    "24HMP_aCompCor_spike_reg"
+    "6HMP_WM_CSF_spike_reg"
+    "24HMP_WM_CSF_spike_reg"
+)
+
+# Build flat index array
+# nback/mid/gonogo → cope1 only  (3 tasks x 12 pipelines = 36)
+# oasis            → cope4 and cope5 gfeat runs (2 x 12 = 24)
+# Total = 60 jobs → J 0-59
+
+COMBOS=()
+
+# nback, mid, gonogo
+for TASK in nback mid gonogo; do
+    for PIPELINE in "${PIPELINES[@]}"; do
+        COMBOS+=("${TASK}:cope1:${PIPELINE}_overall_mean")
+    done
+done
+
+# oasis — two copes
+for OASIS_COPE in cope4 cope5; do
+    for PIPELINE in "${PIPELINES[@]}"; do
+        COMBOS+=("oasis:cope1:${PIPELINE}_overall_mean_${OASIS_COPE}")
+    done
+done
+
+# Pick this job's combination
+COMBO="${COMBOS[$PBS_ARRAY_INDEX]}"
+export TASK=$(echo "$COMBO"     | cut -d: -f1)
+export COPE=$(echo "$COMBO"     | cut -d: -f2)
+export PIPELINE=$(echo "$COMBO" | cut -d: -f3)
+
+echo "================================================"
+echo "Job index : $PBS_ARRAY_INDEX"
+echo "Task      : $TASK"
+echo "Cope      : $COPE"
+echo "Pipeline  : $PIPELINE"
+echo "================================================"
+
+bash "${TEMPLATE}"

@@ -1,0 +1,34 @@
+#!/bin/bash
+#PBS -N nback_GFEAT_analysis
+#PBS -l select=1:ncpus=4:mem=16gb
+#PBS -l walltime=08:00:00
+#PBS -J 0-11
+#PBS -o /path/to/project/Scripts/gfeatlogs/nback
+#PBS -e /path/to/project/Scripts/gfeatlogs/nback
+
+module load FSL/6.0.7.17
+source "$FSLDIR/etc/fslconf/fsl.sh"
+
+PipelineList=(6HMP 24HMP 6HMP_aCompCor 6HMP_spike_reg 24HMP_aCompCor 6HMP_WM_CSF 24HMP_WM_CSF 24HMP_spike_reg 6HMP_aCompCor_spike_reg 24HMP_aCompCor_spike_reg 6HMP_WM_CSF_spike_reg 24HMP_WM_CSF_spike_reg)
+
+PIPELINE="${PipelineList[$PBS_ARRAY_INDEX]}"
+
+basedir=/path/to/project
+template="$basedir/group_levels/templates/nback_paired_template.fsf"
+outdir="$basedir/group_levels/nback"
+fsfdir="$outdir/fsf"
+mkdir -p "$fsfdir"
+
+FSF_FILE="$fsfdir/nback_paired_midlevel_${PIPELINE}.fsf"
+
+# Generate FSF for this pipeline
+sed -e "s/PIPELINE/${PIPELINE}/g" "$template" > "$FSF_FILE"
+
+# Output dir from FSF controls where results go. Skip if it exists:
+FEAT_DIR="$outdir/paired_mid-level_analysis_${PIPELINE}.feat"
+if [ -d "$FEAT_DIR" ]; then
+  echo "Already exists: $FEAT_DIR"
+  exit 0
+fi
+
+feat "$FSF_FILE"

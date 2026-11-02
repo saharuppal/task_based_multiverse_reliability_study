@@ -1,0 +1,66 @@
+#!/bin/bash
+#PBS -N icc_masked_extract
+#PBS -l select=1:ncpus=1:mem=8gb
+#PBS -l walltime=02:00:00
+#PBS -J 0-215
+#PBS -o /path/to/project/group_levels/icc_masked_logs/icc_masked.o
+#PBS -e /path/to/project/group_levels/icc_masked_logs/icc_masked.e
+
+set -euo pipefail
+
+mkdir -p /path/to/project/group_levels/icc_masked_logs
+
+module purge
+module load tools/prod
+module load FSL/6.0.7.17
+module load Python/3.11.5-GCCcore-13.2.0
+source $FSLDIR/etc/fslconf/fsl.sh
+
+TEMPLATE="/path/to/project/group_levels/export_filtered_func_data/analysis_scripts/icc_masked_extract_template.sh"
+
+PIPELINES=(
+    "6HMP"
+    "24HMP"
+    "6HMP_aCompCor"
+    "6HMP_spike_reg"
+    "24HMP_aCompCor"
+    "6HMP_WM_CSF"
+    "24HMP_WM_CSF"
+    "24HMP_spike_reg"
+    "6HMP_aCompCor_spike_reg"
+    "24HMP_aCompCor_spike_reg"
+    "6HMP_WM_CSF_spike_reg"
+    "24HMP_WM_CSF_spike_reg"
+)
+
+# Build flat index array — cope uses hyphen format (cope-1, cope-2 ...)
+# nback=4, gonogo=4, mid=4, oasis=6 → 18 task-cope combos x 12 pipelines = 216
+COMBOS=()
+for TASK in nback gonogo mid oasis; do
+    case $TASK in
+        nback)  NUM_COPES=4 ;;
+        gonogo) NUM_COPES=4 ;;
+        mid)    NUM_COPES=4 ;;
+        oasis)  NUM_COPES=6 ;;
+    esac
+    for COPE_NUM in $(seq 1 $NUM_COPES); do
+        for PIPELINE in "${PIPELINES[@]}"; do
+            COMBOS+=("${TASK}:cope-${COPE_NUM}:${PIPELINE}")
+        done
+    done
+done
+
+# Pick this job's combination from the array index
+COMBO="${COMBOS[$PBS_ARRAY_INDEX]}"
+export TASK=$(echo "$COMBO"     | cut -d: -f1)
+export COPE=$(echo "$COMBO"     | cut -d: -f2)
+export PIPELINE=$(echo "$COMBO" | cut -d: -f3)
+
+echo "================================================"
+echo "Job index : $PBS_ARRAY_INDEX"
+echo "Task      : $TASK"
+echo "Cope      : $COPE"
+echo "Pipeline  : $PIPELINE"
+echo "================================================"
+
+bash "${TEMPLATE}"

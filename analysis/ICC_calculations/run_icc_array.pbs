@@ -1,0 +1,63 @@
+#!/bin/bash
+#PBS -N first_levels_voxelwise_icc
+#PBS -l select=1:ncpus=4:mem=16gb
+#PBS -l walltime=12:00:00
+#PBS -J 0-217
+#PBS -o /rds/general/user/su24/projects/task_reliability_study/live/MultiverseReliability/group_levels/export_filtered_func_data/analysis_scripts/fl_icc_logs
+#PBS -e /rds/general/user/su24/projects/task_reliability_study/live/MultiverseReliability/group_levels/export_filtered_func_data/analysis_scripts/fl_icc_logs
+set -euo pipefail
+
+module purge
+module load tools/prod
+module load Python/3.11.5-GCCcore-13.2.0
+
+# Make sure user site-packages are allowed and on-path
+export PYTHONNOUSERSITE=0
+export PATH="$HOME/.local/bin:$PATH"
+
+echo "Python: $(which python)"
+python --version
+
+# Install dependencies to ~/.local if missing (quiet-ish, but will show errors)
+python - <<'PY'
+import importlib.util, sys, subprocess
+
+pkgs = ["pyrelimri", "nilearn", "nibabel", "pandas", "tqdm"]
+missing = [p for p in pkgs if importlib.util.find_spec(p) is None]
+
+if missing:
+    print("Missing packages:", missing)
+    cmd = [sys.executable, "-m", "pip", "install", "--user", "--upgrade", "pip"]
+    subprocess.check_call(cmd)
+    cmd = [sys.executable, "-m", "pip", "install", "--user", "--no-cache-dir"] + missing
+    subprocess.check_call(cmd)
+else:
+    print("All required packages already available.")
+PY
+
+# Sanity check
+python -c "import pyrelimri, nilearn, nibabel, pandas, tqdm; print('Imports OK')"
+
+BASE_DIR="/rds/general/user/su24/projects/task_reliability_study/live/MultiverseReliability/group_levels/export_filtered_func_data/analysis_scripts"
+COMBOS="${BASE_DIR}/icc_combos.csv"
+SCRIPT="${BASE_DIR}/icc_run.py"
+
+LINE_NUM=$((PBS_ARRAY_INDEX + 2))
+LINE=$(sed -n "${LINE_NUM}p" "${COMBOS}" || true)
+
+if [[ -z "${LINE}" ]]; then
+  echo "No line found for PBS_ARRAY_INDEX=${PBS_ARRAY_INDEX} (LINE_NUM=${LINE_NUM}). Check array range."
+  exit 1
+fi
+
+task=$(echo "${LINE}" | cut -d',' -f1)
+pipeline=$(echo "${LINE}" | cut -d',' -f2)
+cope=$(echo "${LINE}" | cut -d',' -f3)
+
+echo "Running combo: task=${task} pipeline=${pipeline} cope=${cope}"
+
+python "${SCRIPT}" \
+  --task "${task}" \
+  --pipeline "${pipeline}" \
+  --cope "${cope}" \
+  --n_jobs 4

@@ -1,0 +1,24 @@
+#!/bin/bash
+#PBS -N extract_mean_fd
+#PBS -l select=1:ncpus=1:mem=4gb
+#PBS -l walltime=00:30:00
+#PBS -o /path/to/project/Scripts/FD_logs/extract_mean_fd.o
+#PBS -e /path/to/project/Scripts/FD_logs/extract_mean_fd.e
+
+set -euo pipefail
+
+mkdir -p /path/to/project/Scripts/FD_logs
+
+module purge
+module load tools/prod
+module load Python/3.11.5-GCCcore-13.2.0
+
+FMRIPREP_DIR="/path/to/fmriprep_output"
+OUTPUT="/$basedir/further_analysis/mean_fd.csv"
+SCRIPT="/Scripts/extract_mean_fd.py"
+
+python "$SCRIPT" \
+    --fmriprep_dir "$FMRIPREP_DIR" \
+    --output "$OUTPUT"
+
+echo "Done. Output at: $OUTPUT"
