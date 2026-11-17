@@ -7,11 +7,9 @@
 # Spike columns are identified from confoundevs.txt where present.
 # For non-spike-reg pipelines, no one-hot spike column exists, so zero
 # frames get censored and the "corrected" rho equals the rho over all
-# available (non-NaN) frames -- i.e. censoring is a safe no-op for
-# these pipelines, not a special case that needed separate handling.
+# available (non-NaN) frames 
 #
 # Expected layout:
-#
 # further_analysis/fd_dvars_dof/
 #     <task>/
 #         sub-0XX/
@@ -27,7 +25,7 @@
 #                                 (not pooled raw FD/DVARS values).
 #                                 Session-level results are computed as
 #                                 an in-memory intermediary only and are
-#                                 not written to disk.
+#                                 not written.
 # """
 
 module load FSL/6.0.7.17
@@ -43,19 +41,9 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
-
-# ============================================================
-# PATHS 
-# ============================================================
-
 BASE_DIR = Path("further_analysis/fd_dvars_dof")
 OUT_SUBJECT = BASE_DIR / "fd_dvars_per_subject.csv"
-
-# Root under which each participant's first-level FEAT directory lives.
-# VERIFY this matches your real structure -- edit build_design_path()
-# below if your naming differs.
 FEAT_ROOT = Path("first_levels")
-
 
 def build_design_path(task: str, subject: str, session: str, pipeline: str) -> Path:
     feat_dir = (
@@ -64,10 +52,9 @@ def build_design_path(task: str, subject: str, session: str, pipeline: str) -> P
     )
     return feat_dir / "confoundevs.txt"   # was: design.mat
 
-
-# ============================================================
-# TASKS AND PIPELINES -- ALL TWELVE
-# ============================================================
+# ----------------------------------------------------
+# TASKS AND PIPELINES
+# ----------------------------------------------------
 
 TASKS = ["nback", "gonogo", "mid", "oasis"]
 
@@ -81,9 +68,9 @@ PIPELINES = [
 ]
 
 
-# ============================================================
+# ----------------------------------------------------
 # FUNCTIONS
-# ============================================================
+# ----------------------------------------------------
 
 def load_1d(path: Path):
     """Load a whitespace/newline-delimited 1D text file as a float array.
@@ -108,8 +95,8 @@ def get_spike_censored_indices(design_path: Path):
     Spike columns here are raw, un-demeaned one-hot columns: exactly
     two distinct values (0.0 and 1.0), with 1.0 occurring exactly once.
     Continuous confound columns (motion params, WM, CSF, aCompCor) have
-    many distinct values and are correctly ignored -- for non-spike
-    pipelines this naturally returns an empty set, not an error.
+    many distinct values and are ignored -- for non-spike
+    pipelines this returns an empty set (not an error).
     """
     if not design_path.exists():
         return None
@@ -144,7 +131,7 @@ def align_fd_dvars(fd: np.ndarray, dvars: np.ndarray):
 
     If lengths differ by more than one frame, alignment is not
     attempted because this could indicate actual volume removal
-    somewhere within the run.
+    somewhere within run.
     """
     n_fd = len(fd)
     n_dv = len(dvars)
@@ -184,9 +171,9 @@ def compute_rho(fd_al, dv_al, note_suffix=""):
     return rho, pval, note_suffix
 
 
-# ============================================================
+# ----------------------------------------------------
 # MAIN ANALYSIS
-# ============================================================
+# ----------------------------------------------------
 
 def main():
     rows = []
@@ -290,8 +277,9 @@ def main():
 
     df = pd.DataFrame(rows)   # in-memory session-level intermediary — not written to disk
 
-    # ---- Subject-level rollup: PLAIN AVERAGE of the two session-level
-    #      rho values -- NOT pooling raw FD/DVARS values across sessions ----
+# ---------------------------------------------------------------
+# Subject-level summary: PLAIN AVERAGE of the two session-level
+# rho values e.g. not pooling RAW FD/DVARS values across sessions
     subj_rows = []
     if len(df):
         grp_cols = ["task", "subject", "pipeline"]
