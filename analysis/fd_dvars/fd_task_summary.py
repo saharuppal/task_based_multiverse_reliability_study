@@ -1,6 +1,10 @@
 ############################
-# FOR RUNNING IN IMPERIAL RDS
+# Summarise fd-task association across population 
 #####################
+# Takes previouslyu calculated subject level fd_dvars
+# Converts the correlation coefficients into Fisher z values.
+# Calculates descriptive statistics grouped by task and EV using Fisher z
+# Calculates proportions of correlations exceeding absolute thresholds of 0.2 and 0.3.
 
 python3 - <<'PY'
 import pandas as pd
